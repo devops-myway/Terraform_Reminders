@@ -1,0 +1,328 @@
+##### Local variables
+Local variables are declared using the locals block. It is a group of key-value pairs that can be used in the configuration. The values can be hard-coded or be a reference to another variable or resource
+  
+``````sh
+locals {
+ ami  = "ami-0d26eb3972b7f8c96"
+ type = "t2.micro"
+ tags = {
+   Name = "My Virtual Machine"
+   Env  = "Dev"
+ }
+ subnet = "subnet-76a8163a"
+ nic    = aws_network_interface.my_nic.id
+}
+ 
+resource "aws_instance" "myvm" {
+ ami           = local.ami
+ instance_type = local.type
+ tags          = local.tags
+ 
+ network_interface {
+   network_interface_id = aws_network_interface.my_nic.id
+   device_index         = 0
+ }
+}
+ 
+resource "aws_network_interface" "my_nic" {
+ description = "My NIC"
+ subnet_id   = var.subnet
+ 
+ tags = {
+   Name = "My NIC"
+ }
+}
+
+``````
+##### Terraform input variables
+Terraform input variables are used to pass certain values from outside of the configuration or module. They are used to assign dynamic values to resource attributes
+
+Input variables support multiple data types.
+
+They are broadly categorized as simple and complex. String, number, bool are simple data types, whereas list, map, tuple, object, and set are complex data types.
+
+``````sh
+##### String type:
+The string type input variables are used to accept values in the form of UNICODE characters
+
+variable "string_type" {
+ description = "This is a variable of type string"
+ type        = string
+ default     = "Default string value for this variable"
+}
+##### Number type:
+The number type input variable enables us to define and accept numerical values as inputs for their infrastructure deployments.
+
+variable "number_type" {
+ description = "This is a variable of type number"
+ type        = number
+ default     = 42
+}
+##### Boolean type:
+The boolean type input variable is used to define and accept true/false values as inputs for infrastructure deployments to incorporate logic and conditional statements into the Terraform configurations
+
+variable "boolean_type" {
+ description = "This is a variable of type bool"
+ type        = bool
+ default     = true
+}
+
+##### List type:
+Terraform list variables allow us to define and accept a collection of values as inputs for infrastructure deployments.
+A list is an ordered sequence of elements, and it can contain any data type, such as strings, numbers, or even other complex data structures.
+
+variable "list_type" {
+ description = "This is a variable of type list"
+ type        = list(string)
+ default     = ["string1", "string2", "string3"]
+}
+
+##### Map Type:
+The map type input variable enables us to define and accept a collection of key-value pairs as inputs for our infrastructure deployments
+
+variable "map_type" {
+ description = "This is a variable of type map"
+ type        = map(string)
+ default     = {
+   key1 = "value1"
+   key2 = "value2"
+ }
+}
+
+##### Object type:
+An object represents a complex data structure that consists of multiple key-value pairs, where each key is associated with a specific data type for its corresponding value
+
+variable "object_type" {
+ description = "This is a variable of type object"
+ type        = object({
+   name    = string
+   age     = number
+   enabled = bool
+ })
+ default = {
+   name    = "John Doe"
+   age     = 30
+   enabled = true
+ }
+}
+##### Tuple type:
+A tuple is a fixed-length collection that can contain values of different data types.
+  
+variable "tuple_type" {
+ description = "This is a variable of type tuple"
+ type        = tuple([string, number, bool])
+ default     = ["item1", 42, true]
+}
+##### Set type:
+A set is an unordered collection of distinct values, meaning each element appears only once within the set.
+
+variable "set_example" {
+ description = "This is a variable of type set"
+ type        = set(string)
+ default     = ["item1", "item2", "item3"]
+}
+
+##### Map of Objects type:
+One of the widely used complex input variable types is map(object). It is a data type that represents a map where each key is associated with an object value.
+It allows us to create a collection of key-value pairs, where the values are objects with defined attributes and their respective values.
+The map(object) is an unordered set, and each object is referred to using the key value.
+
+variable "map_of_objects" {
+  description = "This is a variable of type Map of objects"
+  type = map(object({
+    name = string,
+    cidr = string
+  }))
+  default = {
+    "subnet_a" = {
+      name = "Subnet A",
+      cidr = "10.10.1.0/24"
+      },
+    "subnet_b" = {
+      name = "Subnet B",
+      cidr = "10.10.2.0/24"
+      },
+    "subnet_c" = {
+      name = "Subnet C",
+      cidr = "10.10.3.0/24"
+    }
+  }
+}
+##### List of Objects type:
+This type of variable is similar to the Map of objects, except that the objects are not referred to by any “key”.
+The list(object) is an ordered list of objects where each object is referred to using the index.
+
+variable "list_of_objects" {
+  description = "This is a variable of type List of objects"
+  type = list(object({
+    name = string,
+    cidr = string
+  }))
+  default = [
+    {
+      name = "Subnet A",
+      cidr = "10.10.1.0/24"
+    },
+    {
+      name = "Subnet B",
+      cidr = "10.10.2.0/24"
+    },
+    {
+      name = "Subnet C",
+      cidr = "10.10.3.0/24"
+    }
+  ]
+}
+``````
+#### Terraform input variables example
+Create a new file to declare input variables as variables.tf.
+
+``````sh
+variable "ami" {
+ type        = string
+ description = "AMI ID for the EC2 instance"
+ default     = "ami-0d26eb3972b7f8c96"
+ 
+ validation {
+   condition     = length(var.ami) > 4 && substr(var.ami, 0, 4) == "ami-"
+   error_message = "Please provide a valid value for variable AMI."
+ }
+}
+ 
+variable "type" {
+ type        = string
+ description = "Instance type for the EC2 instance"
+ default     = "t2.micro"
+ sensitive   = true
+}
+ 
+variable "tags" {
+ type = object({
+   name = string
+   env  = string
+ })
+ description = "Tags for the EC2 instance"
+ default = {
+   name = "My Virtual Machine"
+   env  = "Dev"
+ }
+}
+ 
+variable "subnet" {
+ type        = string
+ description = "Subnet ID for network interface"
+ default     = "subnet-76a8163a"
+}
+
+
+``````
+#### modify main.tf to use the variables declared above.
+``````sh
+resource "aws_instance" "myvm" {
+ ami           = var.ami
+ instance_type = var.type
+ tags          = var.tags
+ 
+ network_interface {
+   network_interface_id = aws_network_interface.my_nic.id
+   device_index         = 0
+ }
+}
+ 
+resource "aws_network_interface" "my_nic" {
+ description = "My NIC"
+ subnet_id   = var.subnet
+ 
+ tags = {
+   Name = "My NIC"
+ }
+}
+
+
+``````
+#### Sensitive variables
+Terraform has also the ability to mark variables as sensitive and will not display their value when you are running terraform plan and apply, but they will be readable from within the Terraform state
+
+``````sh
+variable "my_super_secret_password" {
+ type      = string
+ default   = "super-secret"
+ sensitive = true
+}
+
+output "my_super_secret_password" {
+ value = var.my_super_secret_password
+}
+
+``````
+#### Output variables
+For situations where you deploy a large web application infrastructure using Terraform, you often need certain endpoints, IP addresses, database user credentials, and so forth.
+This information is most useful for passing the values to modules along with other scenarios.
+``````sh
+output "instance_id" {
+ value       = aws_instance.myvm.id
+ description = "AWS EC2 instance ID"
+ sensitive   = false
+}
+
+
+``````
+#### Using variables in for_each loop
+The Terraform for loop and create separate subnets based on the index value of the iteration.
+we can make use of complex variable type map(object()) along with for loop to iterate over this variable.
+
+Let us move to the .tfvars file to initialize the value for this input variable. The .tfvars file should contain the following lines of code
+
+``````sh
+variable "my_subnets" {
+ type = map(object({
+   cidr = string
+   az   = string
+ }))
+ description = "Subnets for My VPC"
+}
+------
+my_subnets = {
+ "a" = {
+   cidr = "10.0.1.0/26"
+   az   = "eu-central-1a"
+ },
+ "b" = {
+   cidr = "10.0.2.0/26"
+   az   = "eu-central-1a"
+ },
+ "c" = {
+   cidr = "10.0.3.0/26"
+   az   = "eu-central-1b"
+ },
+ "d" = {
+   cidr = "10.0.4.0/26"
+   az   = "eu-central-1c"
+ },
+ "e" = {
+   cidr = "10.0.5.0/26"
+   az   = "eu-central-1b"
+ }
+}
+---
+resource "aws_subnet" "my_subnets" {
+ for_each          = var.my_subnets
+ vpc_id            = aws_vpc.my_vpc.id
+ cidr_block        = each.value.cidr
+ availability_zone = each.value.az
+ 
+ tags = {
+   Name = "Subnet - ${each.value.az}"
+ }
+}
+``````
+``````sh
+
+
+
+``````
+``````sh
+
+
+
+``````
