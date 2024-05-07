@@ -1,0 +1,145 @@
+#### What is the Terraform ternary operator
+A Terraform ternary operator is one which operates on three operators. Syntactically, the ternary operator defines a Boolean condition, 
+a value when the condition is true, and a value when the condition is false.
+
+``````sh
+#syntax
+
+condition ? true_part : false_part
+
+e.g 1
+account_tier = var.environment == "dev" ? "Standard" : "Premium"
+
+``````
+#### Create a resource using a conditional expression
+
+``````sh
+variable "add_storage_account" {
+  description = "boolean to determine whether to create a storage account or not"
+  type        = bool
+}
+
+resource "azurerm_storage_account" "my_storage_account" {
+  count = var.add_storage_account ? 1 : 0
+
+  resource_group_name      = "rg-conditional-demo"
+  location                 = "eastus"
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+
+  name = "stspacelift${count.index}${local.rand_suffix}"
+}
+
+``````
+
+``````sh
+variable "users" {
+  description = "A list of users to add"
+  type = map(object({
+    email     = string,
+    user_type = string
+  }))
+  default = {
+    "member1" = {
+      email     = "member1@abc.com",
+      user_type = "Member"
+    },
+    "member2" = {
+      email     = "member2@abc.com",
+      user_type = "Member"
+    },
+    "guest1" = {
+      email     = "guest@abc.com",
+      user_type = "Guest"
+    }
+  }
+}
+
+# Get the users from AAD
+data "azuread_user" "my_users" {
+  for_each = var.users
+  	user_principal_name = each.value.email
+}
+
+resource "azuread_group" "my_group" {
+  display_name     = "mygroup"
+  security_enabled = true
+}
+
+
+# Only add users who are members to the group
+resource "azuread_group_member" "my_group_members" {
+  for_each = { for key, val in data.azuread_user.my_users :
+  	key => val if val.user_type == "Member" }
+
+  Group_object_id     = azuread_group.my_group.id
+  Member_object_id = data.azuread_user.my_users[each.key].id
+}
+
+``````
+#### Using conditionals to deploy a Terraform module
+``````sh
+# module examples
+# determine if an account should be created
+module "storage" {
+  count = var.add_storage_account ? 1 : 0
+
+
+  source = "./path to module tf file"
+  ...
+}
+
+
+# filter list of users to add to a group
+module "group_members" {
+  for_each = { for key, val in data.azuread_user.my_users :
+  	key => val if val.user_type == "Member" }
+
+  source = "./path to module tf file"
+  ...
+}
+
+``````
+####  Using conditionals in data sources
+
+``````sh
+# data source example
+# filter a data source using the `users` variable from above, looking for "members"
+data "azuread_user" "my_users" {
+  for_each = { for key, val in var.users :
+  	key => val if val.user_type == "Member" }
+
+  user_principal_name = each.value.email
+}
+
+``````
+#### Using conditionals with local values
+
+``````sh
+# local variable example
+# uses a conditional expression to assign a value to the "rand_suffix" variable if the `add_storage_account` variable is true
+locals {
+    # "rand_suffix" can be appended to the storage account name.
+    rand_suffix = var.add_storage_account ? ${random_string.random.result} : null
+}
+
+``````
+#### Using conditionals with output variables
+
+``````sh
+# output variable example
+# return a storage account name, if an account was created. Empty string otherwise
+output "storage_account_name" {
+  value = var.add_storage_account ? azurerm_storage_account.my_storage_account[0].name : ""
+}
+
+``````
+
+#### Writing multiple conditions
+Terraform provides the logical operators && (AND), || (OR), and ! (NOT).
+
+``````sh
+count = var.add_storage_account && var.environment == "prod" ? 2 : 0
+---
+count = var.add_storage_account ? var.environment == "prod" ? 2 : 1 : 0
+``````
