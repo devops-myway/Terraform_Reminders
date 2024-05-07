@@ -1,0 +1,207 @@
+#### count meta-argument
+Meta-arguments are special arguments provided by Terraform to be used in the resource, data, or module blocks
+The count meta-argument accepts a whole number. It is used to create multiple instances of an infrastructure object when it is used in a resource or module block.
+
+``````sh
+# variables.tf
+variable "ami" {
+  type    = string
+  default = "ami-0078ef784b6fa1ba4"
+}
+
+variable "instance_type" {
+  type    = string
+  default = "t2.micro"
+}
+
+# main.tf
+resource "aws_instance" "sandbox" {
+  count         = 3
+  ami           = var.ami
+  instance_type = var.instance_type
+  tags = {
+    Name = "sandbox_server"
+  }
+}
+# 3 AWS EC2 instances (i.e., 3 aws_instance.sandbox infrastructure objects) are provisioned using the count meta-argument
+
+``````
+#### count.index
+ The count.index attribute represents the unique index number of each object created using the count meta-argument
+
+``````sh
+# variables.tf
+variable "ami" {
+  type    = string
+  default = "ami-0078ef784b6fa1ba4"
+}
+
+variable "instance_type" {
+  type    = string
+  default = "t2.micro"
+}
+
+variable "sandboxes" {
+  type    = list(string)
+  default = ["sandbox_server_one", "sandbox_server_two", "sandbox_server_three"]
+}
+
+# main.tf
+resource "aws_instance" "sandbox" {
+  ami           = var.ami
+  instance_type = var.instance_type
+  count         = 3
+  tags = {
+    Name = var.sandboxes[count.index]
+  }
+}
+# 1st instance will still be referenced as aws_instance.sandbox[0]
+
+``````
+#### The count meta-argument also accepts numeric expressions
+The length function determines the length of the given list (i.e., var.sandboxes). The expression length(var.sandboxes) evaluates to 3, which is used by the count meta-argument to create 3 resource instances.
+
+``````sh
+# variables.tf
+variable "ami" {
+  type    = string
+  default = "ami-0078ef784b6fa1ba4"
+}
+
+variable "instance_type" {
+  type    = string
+  default = "t2.micro"
+}
+
+variable "sandboxes" {
+  type    = list(string)
+  default = ["sandbox_server_one", "sandbox_server_two", "sandbox_server_three"]
+}
+
+# main.tf
+resource "aws_instance" "sandbox" {
+  ami           = var.ami
+  instance_type = var.instance_type
+  count         = length(var.sandboxes)
+  tags = {
+    Name = var.sandboxes[count.index]
+  }
+}
+
+``````
+#### Using count in data blocks
+The count meta-argument can also be used inside data blocks.
+
+``````sh
+# variables.tf
+variable "sandboxes" {
+  type    = list(string)
+  default = ["sandbox_server_one", "sandbox_server_two", "sandbox_server_three"]
+}
+
+# main.tf
+data "aws_instances" "sandbox_server" {
+  count = 2
+
+  filter {
+    name   = "tag:Name"
+    values = var.sandboxes
+  }
+
+  filter {
+    name   = "instance-state-name"
+    values = ["running"]
+  }
+}
+# The count meta-argument in the data block is used to fetch only 2 AWS EC2 instances that match the given requirements specified in the nested filter blocks
+
+``````
+#### Using count in module blocks
+The count meta-argument can also be used inside module blocks.
+
+``````sh
+# child module - variables.tf
+variable "ami" {
+  type    = string
+  default = "ami-0078ef784b6fa1ba4"
+}
+
+variable "instance_type" {
+  type    = string
+  default = "t2.small"
+}
+
+variable "nameTag" {
+  type    = string
+  default = "testTag"
+}
+
+# child module - web_server.tf
+resource "aws_instance" "sandbox" {
+  ami           = var.ami
+  instance_type = var.instance_type
+  tags = {
+    Name = var.nameTag
+  }
+}
+
+# root module - variables.tf
+variable "sandboxes" {
+  type    = list(string)
+  default = ["sandbox_server_one", "sandbox_server_two", "sandbox_server_three"]
+}
+
+# root module - main.tf
+module "web_servers" {
+  source = "./modules/web_servers"
+
+  count         = 3
+  instance_type = "t2.micro"
+  nameTag       = var.sandboxes[count.index]
+}
+
+``````
+#### Expressions with count
+var.instance_type == “t2.micro” ? 1 : 0, if the instance_type is not t2.micro, it will evaluate to 0, and no instance will be created
+``````sh
+# variables.tf
+variable "ami" {
+  type    = string
+  default = "ami-0078ef784b6fa1ba4"
+}
+
+variable "instance_type" {
+  type = string
+  default = "t2.small"
+}
+
+# main.tf
+resource "aws_instance" "dev" {
+  ami           = var.ami
+  instance_type = var.instance_type
+  count         = var.instance_type == "t2.micro" ? 1 : 0
+  tags = {
+    Name = "dev_server"
+  }
+}
+
+
+``````
+
+``````sh
+
+
+
+``````
+
+``````sh
+
+
+
+``````
+
+``````sh
+
+
+
+``````
