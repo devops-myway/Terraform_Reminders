@@ -1,0 +1,64 @@
+#### Calculate Terraform count using the length of a list during interpolation
+length determines the length of a given list, map, or string.
+
+``````sh
+> length([])
+0
+> length(["a", "b"])
+2
+> length({"a" = "b"})
+1
+> length("hello")
+5
+
+``````
+#### How to use Terraform count with conditional expressions
+length of the list of configurations count = length(local.server_names).
+
+``````sh
+locals {
+ server_names=["backend-service-a", "backend-service-b", "backend-service-c"]
+}
+
+resource "aws_instance" "backend_server" {
+ ami           = "ami-07355fe79b493752d"
+ instance_type = "t2.micro"
+ count         = length(local.server_names)
+ tags          = {
+   Name = local.server_names[count.index]
+ }
+}
+
+
+``````
+#### How to use Terraform count in data blocks and other resource blocks
+Blocks using the count meta-argument can refer to other data and resource blocks to set the value of count the same way as referring to external configurations we saw earlier.
+
+``````sh
+locals {
+  vpc_id = "vpc-0742ea90775a96859"
+}
+
+data "aws_subnets" "subnets" {
+ filter {
+   name   = "vpc-id"
+   values = [local.vpc_id]
+ }
+}
+
+resource "aws_instance" "backend_server" {
+ ami           = "ami-07355fe79b493752d"
+ instance_type = "t2.micro"
+ count         = length(data.aws_subnets.subnets.ids)
+ subnet_id     = data.aws_subnets.subnets.ids[count.index]
+ tags          = {
+   Name = "backend-server-${count.index}"
+ }
+}
+
+output "subnets" {
+ value = data.aws_subnets.subnets.ids
+}
+
+
+``````
