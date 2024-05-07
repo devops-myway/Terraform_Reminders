@@ -1,0 +1,83 @@
+#### templatefile function
+The templatefile() function accepts a couple of inputs: 
+
+A template file (*.tftpl)
+Variable – which could be a list or map.
+
+#### Create user_data with Terraform
+String literals (${ … }) are used to represent variables.
+To add this script as user_data for EC2 instance, we use the templatefile() function as below.
+
+``````sh
+template file be script.tftpl
+
+#!/bin/sh
+sudo mkdir ${request_id}
+cd ${request_id}
+sudo touch ${name}.txt
+--
+resource "aws_instance" "demo_vm" {
+ ami                     = var.ami
+ instance_type           = var.type
+ user_data               = templatefile("script.tftpl", { request_id = "REQ000129834", name = "John" })
+ key_name                = "tftemplate"
+
+ tags = {
+   name  = "Demo VM"
+   type  = "Templated"
+ }
+}
+
+``````
+#### Template file with for loop
+
+``````sh
+Filename: resolv.conf.tftpl
+nameserver x.x.x.x
+nameserver x.x.x.x
+nameserver x.x.x.x
+--
+%{ for addr in ip_addrs ~}
+nameserver ${addr}
+%{ endfor ~}
+----
+provisioner "file" {
+   source      = templatefile("resolv.conf.tftpl", {ip_addrs = ["192.168.0.100", "8.8.8.8", "8.8.4.4"]})
+   destination = "/etc/resolv.conf"
+ }
+
+``````
+#### Creating JSON files using templatefile()
+Creating a valid JSON object using string operations can get tricky. A slight mistake in indentation, or mistyping : or " – in template files – can cause errors.
+we create a template file as below – dependencies.tftpl
+``````sh
+${
+jsonencode("dependencies": { 
+"cradle": ${cradle_v}, 
+"jade": ${jade_v}, 
+"redis": ${redis_v}, 
+"socket.io": ${socket_v}, 
+"twitter-node": ${twitter_v}, 
+"express": ${express_v} })
+}
+---
+variable dep_vers {
+   default = {
+       "cradle_v": "0.5.5",
+       "jade_v": "0.10.4",
+       "redis_v": "0.5.11",
+       "socket_v": "0.6.16",
+       "twitter_v": "0.0.2",
+       "express_v": "2.2.0"
+   }
+}
+
+provisioner "file" {
+  source      = templatefile("dependencies.tftpl", var.dep_vers)
+  destination = "/desired/path/dependencies.json"
+}
+``````
+``````sh
+
+
+``````
