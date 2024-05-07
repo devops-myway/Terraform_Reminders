@@ -1,0 +1,239 @@
+#### Terraform for_each
+Terraform for_each is a meta argument that helps in creating multiple instances of a defined resource.
+for_each primarily works with a set of strings (set(string)) and map of strings (map(string)).
+
+``````sh
+# syntax of using for_each
+
+resource "<resource type>" "<resource name>" {
+  for_each = var.instances
+  // Other attributes
+
+  tags = {
+    Name = each.<value/key>
+  }
+}
+
+``````
+#### Using for_each with set of strings
+If the input is an “array of strings” – in terms of Terraform, if the input is set(string).
+
+``````sh
+variable "instance_set" {
+  type = set(string)
+  default = ["Instance A", "Instance B"]
+}
+
+resource "aws_instance" "by_set" {
+  for_each = var.instance_set
+  ami = "ami-0b08bfc6ff7069aff"
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = each.value
+  }
+}
+
+``````
+#### Terraform for_each with a list of strings
+For occasions where instead of set, a list(string) is used – use the Terraform’s inbuilt function toset() to perform the type conversion.
+``````sh
+variable "instance_set" {
+  type = list(string)
+  default = ["Instance A", "Instance B"]
+}
+resource "aws_instance" "by_set" {
+  for_each = toset(var.instance_set)
+  ami = "ami-0b08bfc6ff7069aff"
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = each.value
+  }
+}
+
+``````
+#### Using for_each with map
+
+``````sh
+variable "instance_map" {
+  type = map(string)
+  default = {
+    "inst_a" = "Instance A",
+    "inst_b" = "Instance B"
+  }
+}
+---
+resource "aws_instance" "by_map" {
+  for_each = var.instance_map
+  ami = "ami-0b08bfc6ff7069aff"
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = each.value
+    ID = each.key
+  }
+}
+#The Name and ID tag refer to the value and key strings set in the default value of the instance_map variable
+``````
+#### Using for_each with modules
+
+``````sh
+variable "sg_map" {
+  type = map(string)
+  default = {
+    "SG 1" = "10.10.1.0/24",
+    "SG 2" = "10.10.2.0/24"
+  }
+}
+module "web_server_sg" {
+  for_each = var.sg_map
+  source = "terraform-aws-modules/security-group/aws//modules/http-80"
+
+  name = each.key
+  vpc_id = aws_vpc.example_vpc.id
+
+  ingress_cidr_blocks = [each.value]
+}
+
+
+``````
+#### Using for_each with list of objects
+Note that, it is much better to use map(object) instead of list(object) as it is a much cleaner way to use for_each meta-argument since it is easier to retrieve the key and value strings
+
+``````sh
+variable "instance_object" {
+  type = list(object({
+    name = string
+    enabled = bool
+    instance_type = string
+    env = string
+  }))
+  default = [
+  {
+    name = "instance A"
+    enabled = true
+    instance_type = "t2.micro"
+    env = "dev"
+  },
+  {
+    name = "instance B"
+    enabled = false
+    instance_type = "t2.micro"
+    env = "prod"
+  },
+  ]
+}
+---
+resource "aws_instance" "by_object" {
+  for_each = { for inst in var.instance_object : inst.name => inst }
+  ami = "ami-0b08bfc6ff7069aff"
+  instance_type = each.value.instance_type
+
+  tags = {
+    Name = each.key
+    Env = each.value.env
+  }
+}
+
+``````
+#### Using for_each with Terraform data sources
+
+``````sh
+variable "instance_ids" {
+  description = "List of EC2 instance IDs"
+  type = list(string)
+  default = ["i-1abcd234", "i-2efgh345", "i-3ijkl456", "i-4mnop567", "i-5qrst678"]
+}
+----
+variable "instance_ids" {
+  description = "List of EC2 instance IDs"
+  type = list(string)
+  default = ["i-1abcd234", "i-2efgh345", "i-3ijkl456", "i-4mnop567", "i-5qrst678"]
+}
+---
+data "aws_instance" "ec2_instances" {
+  for_each = toset(var.instance_ids)
+
+  instance_id = each.value
+}
+``````
+#### Conditional creation with for_each
+
+``````sh
+resource "aws_instance" "by_object" {
+  for_each = { for inst in var.instance_object : inst.name => inst if inst.enabled }
+  ami = "ami-0b08bfc6ff7069aff"
+  instance_type = each.value.instance_type
+
+  tags = {
+    Name = each.key
+    Env = each.value.env
+  }
+}
+
+``````
+#### Resource chaining
+The hierarchy involved in implementing a VPC, then the subnets as part of VPC, and then the EC2 instances to be placed in those subnets, is understood
+
+``````sh
+variable "subnet_object" {
+  type = map(object({
+    name = string,
+    cidr = string
+  }))
+  default = {
+    "subnet_a" = {
+      name = "Subnet A",
+      cidr = "10.10.1.0/24"
+    },
+    "subnet_b" = {
+      name = "Subnet B",
+      cidr = "10.10.2.0/24"
+    },
+    "subnet_c" = {
+      name = "Subnet C",
+      cidr = "10.10.3.0/24"
+    }
+  }
+}
+----
+# Create VPC
+resource "aws_vpc" "example_vpc" {
+  cidr_block = "10.10.0.0/16"
+  enable_dns_hostnames = true
+  enable_dns_support = true
+
+  tags = {
+    Name = "Example VPC"
+  }
+}
+
+# Create public subnets
+resource "aws_subnet" "example_subnets" {
+  for_each = var.subnet_object
+  vpc_id = aws_vpc.example_vpc.id
+  cidr_block = each.value.cidr
+  tags = {
+    Name = each.value.name
+  }
+}
+---
+resource "aws_instance" "by_chaining" {
+  for_each = aws_subnet.example_subnets
+  ami = "ami-0b08bfc6ff7069aff"
+  instance_type = "t2.micro"
+  subnet_id = each.value.id
+
+  tags = {
+    Name = "${each.value.id} instance"
+  }
+}
+
+``````
+
+``````sh
+
+
+
+``````
